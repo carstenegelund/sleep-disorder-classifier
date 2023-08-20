@@ -3,9 +3,12 @@
 ################################
 
 import pandas as pd
+import numpy as np
 from scipy.stats import kurtosis, skew
 from sklearn.pipeline import Pipeline
 import pickle
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 
 ################################
@@ -127,6 +130,7 @@ def categorical_univariate_summary(dataframe, categorical_columns):
     pd.set_option('display.max_colwidth', 1000)
     return result
 
+
 def categorical_roll_up(dataframe, column, new_category_name, threshold):
     """
     Roll up infrequent categories in a categorical column into a new category.
@@ -141,6 +145,7 @@ def categorical_roll_up(dataframe, column, new_category_name, threshold):
     to_replace = count_data[count_data < threshold].index
     # Replace the labels
     dataframe[column] = dataframe[column].replace(to_replace, new_category_name)
+
 
 def fix_columns(df, columns):
     """
@@ -166,7 +171,8 @@ def fix_columns(df, columns):
     df = df[columns]
     return df
 
-import pandas as pd
+
+
 
 # Define a function to convert transformed array to DataFrame
 def convert_transformed_features_to_df(ColumnTransformer, transformed_array):
@@ -234,7 +240,6 @@ def save_pipeline(file_name, pipeline_to_save):
 
 
 
-
 def get_saved_pipeline(file_name):
     """
     Load and return a pipeline from a saved file.
@@ -250,3 +255,108 @@ def get_saved_pipeline(file_name):
         loaded_best_current_pipeline = pickle.load(pipeline_file)
     
     return loaded_best_current_pipeline
+
+
+def score_formatter(score, precision):
+    """
+    Format a score as a percentage string.
+
+    Args:
+        score (float): The score to be formatted.
+        precision (int): The number of decimal places for precision.
+
+    Returns:
+        str: The formatted score as a percentage string.
+    """
+    formatted_score = f"{np.round(score, precision) * 100:.{precision}f} %"
+    return formatted_score
+
+
+
+def plot_conf_matrix(class_labels, confusion_matrix):
+    """
+    Plot a confusion matrix as a heatmap.
+
+    Args:
+        class_labels (list): List of class labels for the x and y axis tick labels.
+        confusion_matrix (array-like): The confusion matrix to be plotted.
+
+    Returns:
+        None
+    """
+    # Create a heatmap for the confusion matrix
+    plt.subplots(figsize=(6, 4), gridspec_kw={'hspace': 0.8}, facecolor="#F3EEE7")
+    heatmap = sns.heatmap(confusion_matrix, annot=True, fmt="d", cmap="Blues", xticklabels=class_labels, yticklabels=class_labels)
+    
+    # Add plot details
+    plt.xlabel("Predicted")
+    plt.ylabel("True")
+    plt.title("Confusion Matrix")
+    plt.xticks(rotation=45, ha='right')  # Rotate x-axis labels for better visibility
+    plt.gca().xaxis.tick_top()  # Place x-axis ticks on top for better alignment
+    plt.show()
+
+
+
+def plot_micro_averaged_roc(fpr_micro, tpr_micro, roc_auc_micro=None):
+    """
+    Plot the micro-averaged ROC curve.
+
+    Args:
+        fpr_micro (array-like): False positive rates for the micro-averaged ROC curve.
+        tpr_micro (array-like): True positive rates for the micro-averaged ROC curve.
+        roc_auc_micro (float or None): The AUC value for the micro-averaged ROC curve.
+
+    Returns:
+        None
+    """
+    plt.subplots(figsize=(6, 4), gridspec_kw={'hspace': 0.8}, facecolor="#F3EEE7")
+    
+    if roc_auc_micro is not None:
+        # Plot micro-averaged ROC curve with AUC label
+        plt.plot(fpr_micro, tpr_micro, label=f'Micro-Average (AUC = {roc_auc_micro:.2f})')
+    else:
+        # Plot micro-averaged ROC curve without AUC label
+        plt.plot(fpr_micro, tpr_micro)
+    
+    # Add plot details
+    plt.plot([0, 1], [0, 1], 'k--')
+    plt.xlim([0.0, 1.0])
+    plt.ylim([0.0, 1.05])
+    plt.xlabel('False Positive Rate')
+    plt.ylabel('True Positive Rate')
+    plt.title('Micro-Averaged ROC Curve')
+    
+    if roc_auc_micro is not None:
+        plt.legend(loc="lower right")
+    
+    plt.show()
+
+
+def get_gridsearchcv_summary(fitted_grid_search, precision, X_test, y_test):
+    """
+    Display a summary of the results from a fitted GridSearchCV object.
+
+    Parameters:
+        fitted_grid_search (GridSearchCV): A fitted GridSearchCV object after hyperparameter tuning.
+        precision (int): Number of decimal places to display for accuracy scores.
+        X_test (array-like): Test data features.
+        y_test (array-like): Test data labels.
+    """
+
+    # Access best hyperparameters and accuracy score
+    best_params = fitted_grid_search.best_params_
+    best_train_score = fitted_grid_search.best_score_
+
+    # Print the best parameters
+    display("Best Parameters:", pd.DataFrame(best_params, index=[0]))
+
+    # Print the best mean cv training score
+    print("Mean CV Train Accuracy with best parameters:", score_formatter(best_train_score, precision))
+
+    # Evaluate the best model on the test set
+    best_pipeline = fitted_grid_search.best_estimator_
+    test_accuracy = best_pipeline.score(X_test, y_test)
+    print("Test Accuracy with best parameters:", score_formatter(test_accuracy, precision))
+
+
