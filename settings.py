@@ -4,6 +4,7 @@
 
 import pandas as pd
 from scipy.stats import kurtosis, skew
+from sklearn.pipeline import Pipeline
 
 ################################
 ###### Notebook Settings  ######
@@ -191,4 +192,25 @@ def convert_transformed_features_to_df(ColumnTransformer, transformed_array):
     transformed_df = pd.DataFrame(transformed_array, columns=feature_names)
     
     return transformed_df
+
+
+def create_pipeline(*steps_list):
+    """
+    Creates a pipeline composed of preprocessing and machine learning model steps.
+    
+    Args:
+        *steps_list: Variable number of two-element lists where each list contains the step name and the step object.
+        
+    Returns:
+        pipeline: A scikit-learn pipeline with specified preprocessing and model steps.
+    """
+    # Create a list of tuples with step names and step objects
+    steps = [(step[0], step[1]) for step in steps_list]
+    
+    # Create the pipeline using the defined steps
+    pipeline = Pipeline(steps)
+    
+    # Return the created pipeline
+    return pipeline
+
 
