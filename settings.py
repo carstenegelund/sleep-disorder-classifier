@@ -5,6 +5,8 @@
 import pandas as pd
 from scipy.stats import kurtosis, skew
 from sklearn.pipeline import Pipeline
+import pickle
+
 
 ################################
 ###### Notebook Settings  ######
@@ -214,3 +216,37 @@ def create_pipeline(*steps_list):
     return pipeline
 
 
+
+def save_pipeline(file_name, pipeline_to_save):
+    """
+    Save the provided pipeline to a file.
+
+    Args:
+        file_name (str): The filename to save the pipeline.
+        pipeline_to_save (Pipeline): The pipeline to be saved.
+
+    Returns:
+        None
+    """
+    # Save the provided pipeline to the specified file
+    with open(file_name, 'wb') as pipeline_file:
+        pipeline = pickle.dump(pipeline_to_save, pipeline_file)
+
+
+
+
+def get_saved_pipeline(file_name):
+    """
+    Load and return a pipeline from a saved file.
+
+    Args:
+        file_name (str): The filename of the saved pipeline.
+
+    Returns:
+        Pipeline: The loaded pipeline.
+    """
+    # Load the best current pipeline from the file
+    with open(file_name, 'rb') as pipeline_file:
+        loaded_best_current_pipeline = pickle.load(pipeline_file)
+    
+    return loaded_best_current_pipeline
