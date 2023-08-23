@@ -177,7 +177,7 @@ def fix_columns(df, columns):
 # Define a function to convert transformed array to DataFrame
 def convert_transformed_features_to_df(ColumnTransformer, transformed_array):
     """
-    Converts a transformed array to a DataFrame with appropriate column names.
+    Converts a transformed array to a DataFrame with appropriate column names. ColumnTransformer object must have been used to fit the transformed_array. 
     
     Args:
         pipeline (Pipeline): The pipeline containing the transformers.
