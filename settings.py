@@ -177,8 +177,12 @@ def fix_columns(df, columns):
 # Define a function to convert transformed array to DataFrame
 def convert_transformed_features_to_df(ColumnTransformer, transformed_array):
     """
-    Converts a transformed array to a DataFrame with appropriate column names. ColumnTransformer object must have been used to fit the transformed_array. 
-    
+    Converts a transformed array to a DataFrame with appropriate column names. 
+    Rquirements:
+        ColumnTransformer object must have been used to fit the transformed_array. 
+        ***All columns must have been transformed. i.e. Remainder must not have been used.***
+        ***This function should be revisted to allow for remainder to be used.***
+
     Args:
         pipeline (Pipeline): The pipeline containing the transformers.
         transformed_array (numpy.ndarray): The transformed data array.
@@ -190,9 +194,8 @@ def convert_transformed_features_to_df(ColumnTransformer, transformed_array):
 
     feature_names = []
 
-    for step in steps:
-
-    # Get the feature names after transformation from the pipeline
+    for step in [step for step in steps if step != "remainder"]:
+        # Get the feature names after transformation from the pipeline
         step_feature_names = ColumnTransformer.named_transformers_[step].get_feature_names_out().tolist()
         feature_names.extend(step_feature_names)
     
