@@ -2,13 +2,40 @@
 ###### Import Modules ##########
 ################################
 
+import importlib
+import settings
+importlib.reload(settings)
+
+# import data frameworks
 import pandas as pd
 import numpy as np
-from scipy.stats import kurtosis, skew
-from sklearn.pipeline import Pipeline
-import pickle
+
+# import viz
 import matplotlib.pyplot as plt
 import seaborn as sns
+
+# import ML
+from sklearn.datasets import make_classification
+from sklearn.model_selection import train_test_split
+from sklearn.pipeline import Pipeline
+from imblearn.pipeline import Pipeline as Pipeline_imb
+from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import RepeatedStratifiedKFold
+from sklearn.model_selection import cross_val_score
+from sklearn.model_selection import GridSearchCV
+from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
+from sklearn.metrics import roc_curve, auc
+import statsmodels.api as sm
+from scipy.stats import kurtosis, skew
+from imblearn.over_sampling import SMOTENC
+
+
+# import others
+import os
+import pickle
+import warnings
 
 
 ################################
@@ -361,5 +388,66 @@ def get_gridsearchcv_summary(fitted_grid_search, precision, X_test, y_test):
     best_pipeline = fitted_grid_search.best_estimator_
     test_accuracy = best_pipeline.score(X_test, y_test)
     print("Test Accuracy with best parameters:", score_formatter(test_accuracy, precision))
+
+
+def plot_seed_variability(X, y, test_size, num_seeds, pipeline_or_model, scoring, cv_object):
+    """
+    Evaluate and visualize the variability of model performance across different random seeds.
+
+    This function splits the provided dataset into train and test subsets using different random seeds.
+    It then trains a given model or pipeline on the training data, computes train and test accuracies,
+    as well as cross-validation scores. The function produces a plot showcasing the trend of these scores
+    across different seeds.
+
+    Parameters:
+    X (array-like): The feature matrix.
+    y (array-like): The target vector.
+    test_size (float): The proportion of the dataset to include in the test split.
+    num_seeds (int): The number of random seeds to consider.
+    pipeline_or_model: The machine learning model or pipeline to evaluate.
+    scoring (str): The scoring metric for cross-validation and accuracy evaluation.
+    cv_object: The cross-validation strategy, compatible with the `cross_val_score` function.
+
+    Returns:
+    None
+        The function prints the average train, cross-validation, and test accuracy scores across seeds,
+        and displays a plot illustrating the performance variability.
+    """
+    train_cv_dict = {}
+    train_dict = {}
+    test_dict = {}
+
+    for i in np.arange(1, num_seeds + 1):
+        # re-split using seed
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=i, stratify=y)
+        # Reshape y vector
+        y_train, y_test = y_train.values.reshape(-1), y_test.values.reshape(-1)
+        # run training cv score and add to dict
+        cv_scores = cross_val_score(pipeline_or_model, X_train, y_train, scoring=scoring, cv=cv_object)
+        train_cv_dict[i] = cv_scores.mean()
+        # fit pipeline, score on test and add to dict
+        pipeline_or_model.fit(X_train, y_train)
+        train_accuracy = pipeline_or_model.score(X_train, y_train)
+        test_accuracy = pipeline_or_model.score(X_test, y_test)
+        train_dict[i] = train_accuracy
+        test_dict[i] = test_accuracy
+
+    # present average train and test accuracy scores across all seeds
+    print("Average train score across seeds:", settings.score_formatter(np.mean(list(train_dict.values())),3))
+    print("Average cv train score across seeds:", settings.score_formatter(np.mean(list(train_cv_dict.values())),3))
+    print("Average test score across seeds:", settings.score_formatter(np.mean(list(test_dict.values())),3))
+
+    # plot results
+    fig, ax = plt.subplots(figsize=(6, 4), gridspec_kw={'hspace': 0.8}, facecolor="#F3EEE7")
+    ax.plot(np.arange(1, num_seeds + 1), train_dict.values(), color="r", alpha=0.4, label="Train Accuracy")
+    ax.axhline(y=np.mean(list(train_dict.values())), color='r', linestyle='dotted')
+    ax.plot(np.arange(1,num_seeds + 1), train_cv_dict.values(), color="b", alpha=0.4, label="Test CV Accuracy")
+    ax.axhline(y=np.mean(list(train_cv_dict.values())), color='b', linestyle='dotted')
+    ax.plot(np.arange(1,num_seeds + 1), test_dict.values(), color="g", alpha=0.4, label="Test Accuracy")
+    ax.axhline(y=np.mean(list(test_dict.values())), color='g', linestyle='dotted')
+    ax.set_ylabel(scoring)
+    ax.set_xlabel("Seed")
+    ax.legend()
+    plt.show()
 
 
