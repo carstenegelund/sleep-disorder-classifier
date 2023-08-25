@@ -379,7 +379,7 @@ def get_gridsearchcv_summary(fitted_grid_search, precision, X_test, y_test):
     best_train_score = fitted_grid_search.best_score_
 
     # Print the best parameters
-    display("Best Parameters:", pd.DataFrame(best_params, index=[0]))
+    print("Best Parameters:", pd.DataFrame(best_params, index=[0]))
 
     # Print the best mean cv training score
     print("Mean CV Train Accuracy with best parameters:", score_formatter(best_train_score, precision))
