@@ -200,7 +200,6 @@ def fix_columns(df, columns):
 
 
 
-
 # Define a function to convert transformed array to DataFrame
 def convert_transformed_features_to_df(ColumnTransformer, transformed_array):
     """
@@ -217,14 +216,19 @@ def convert_transformed_features_to_df(ColumnTransformer, transformed_array):
     Returns:
         pandas.DataFrame: DataFrame with transformed features and column names.
     """
-    steps = list(ColumnTransformer.named_transformers_.keys())
+    # steps = list(ColumnTransformer.named_transformers_.keys())
 
-    feature_names = []
+    # feature_names = []
 
-    for step in [step for step in steps if step != "remainder"]:
-        # Get the feature names after transformation from the pipeline
-        step_feature_names = ColumnTransformer.named_transformers_[step].get_feature_names_out().tolist()
-        feature_names.extend(step_feature_names)
+    # for step in [step for step in steps if step != "remainder"]:
+    #     # Get the feature names after transformation from the pipeline
+    #     step_feature_names = ColumnTransformer.named_transformers_[step].get_feature_names_out().tolist()
+    #     feature_names.extend(step_feature_names)
+
+    # Get column names of transformed array
+    feature_names = ColumnTransformer.get_feature_names_out()
+
+    feature_names = [feature_names.split("__")[1] for feature_names in feature_names]
     
     # Create a DataFrame using the transformed array and column names
     transformed_df = pd.DataFrame(transformed_array, columns=feature_names)
