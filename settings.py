@@ -394,7 +394,7 @@ def get_gridsearchcv_summary(fitted_grid_search, precision, X_test, y_test):
     print("Test Accuracy with best parameters:", score_formatter(test_accuracy, precision))
 
 
-def plot_seed_variability(X, y, test_size, num_seeds, pipeline_or_model, scoring, cv_object):
+def plot_seed_variability(X, y, test_size, current_seed, num_seeds, pipeline_or_model, scoring, cv_object, pipeline_type="sklearn"):
     """
     Evaluate and visualize the variability of model performance across different random seeds.
 
@@ -420,7 +420,7 @@ def plot_seed_variability(X, y, test_size, num_seeds, pipeline_or_model, scoring
     train_cv_dict = {}
     train_dict = {}
     test_dict = {}
-
+    
     for i in np.arange(1, num_seeds + 1):
         # re-split using seed
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=i, stratify=y)
@@ -429,17 +429,50 @@ def plot_seed_variability(X, y, test_size, num_seeds, pipeline_or_model, scoring
         # run training cv score and add to dict
         cv_scores = cross_val_score(pipeline_or_model, X_train, y_train, scoring=scoring, cv=cv_object)
         train_cv_dict[i] = cv_scores.mean()
-        # fit pipeline, score on test and add to dict
+        # fit pipeline
         pipeline_or_model.fit(X_train, y_train)
+        # score on train and add to dict
         train_accuracy = pipeline_or_model.score(X_train, y_train)
-        test_accuracy = pipeline_or_model.score(X_test, y_test)
+        train_dict[i] = train_accuracy
+        # score on test and to dict
+        # 
+        allowed_pipeline_type = ["sklearn", "imblearn"]
+        if pipeline_type not in allowed_pipeline_type:
+            raise ValueError(f"'pipeline_type' must be one of {allowed_pipeline_type}")
+        elif pipeline_type == "sklearn":
+            test_accuracy = pipeline_or_model.score(X_test, y_test)
+        else:
+            steps = pipeline_or_model.steps
+            transformer = steps[0][1]
+            X_test_transformed = transformer.transform(X_test)
+            model = steps[-1][1]
+            test_accuracy = model.score (X_test_transformed, y_test)
         train_dict[i] = train_accuracy
         test_dict[i] = test_accuracy
 
-    # present average train and test accuracy scores across all seeds
-    print("Average train score across seeds:", settings.score_formatter(np.mean(list(train_dict.values())),3))
-    print("Average cv train score across seeds:", settings.score_formatter(np.mean(list(train_cv_dict.values())),3))
-    print("Average test score across seeds:", settings.score_formatter(np.mean(list(test_dict.values())),3))
+    # calculate average train and test accuracy scores across all seeds
+    ave_train = np.mean(list(train_dict.values()))
+    ave_train_cv = np.mean(list(train_cv_dict.values()))
+    ave_test = np.mean(list(test_dict.values()))
+
+    # present averages to screen
+    print("Average train score across seeds:", settings.score_formatter(ave_train,3))
+    print("Average cv train score across seeds:", settings.score_formatter(ave_train_cv,3))
+    print("Average test score across seeds:", settings.score_formatter(ave_test,3))
+
+    # calculate and present seed most similar to the train and test averages
+    train_diff_dict = {}
+    test_diff_dict = {}
+    result_dict = {}
+
+    for k, v in train_dict.items():
+        train_diff_dict[k] = np.abs(v - ave_train)
+    for k, v in test_dict.items():
+        test_diff_dict[k] = np.abs(v - ave_test)
+    for k, v in train_diff_dict.items():
+        result_dict[k] = (v + test_diff_dict[k]) / 2
+    min_seed = min(result_dict, key=result_dict.get)
+    print("seed closest to average:", min_seed, " (difference: ", settings.score_formatter(result_dict[min_seed], 3), ")")
 
     # plot results
     fig, ax = plt.subplots(figsize=(6, 4), gridspec_kw={'hspace': 0.8}, facecolor="#F3EEE7")
@@ -449,10 +482,55 @@ def plot_seed_variability(X, y, test_size, num_seeds, pipeline_or_model, scoring
     ax.axhline(y=np.mean(list(train_cv_dict.values())), color='b', linestyle='dotted')
     ax.plot(np.arange(1,num_seeds + 1), test_dict.values(), color="g", alpha=0.4, label="Test Accuracy")
     ax.axhline(y=np.mean(list(test_dict.values())), color='g', linestyle='dotted')
+    ax.axvline(x=current_seed, color='black', linestyle='solid', alpha=0.4)
+    ax.axvline(x=min_seed, color='black', linestyle='dotted', alpha=0.4)
     ax.set_ylabel(scoring.capitalize())
     ax.set_xlabel("Seed")
     ax.set_title("Train, Train CV and Test Score Variability Across Seeds")
     ax.legend()
     plt.show()
+  
+
+
+
+def hyperparam_tune_summary(search_object, X_train, y_train, X_test, y_test):
+    """
+    Summarizes the results of hyperparameter tuning using GridSearchCV.
+
+    Args:
+        search_object (GridSearchCV): GridSearchCV object containing the results of hyperparameter tuning.
+        X_train (array-like): Training data features.
+        y_train (array-like): Training data labels.
+        X_test (array-like): Test data features.
+        y_test (array-like): Test data labels.
+
+    Returns:
+        None (prints the summary to the console).
+    """
+    
+    # Access best hyperparameters and accuracy score
+    best_params, best_train_score = search_object.best_params_, search_object.best_score_
+
+    # Print the best parameters
+    print("Best Parameters:")
+    display(pd.DataFrame(best_params, index=[0]))
+
+    # Get best pipeline
+    best_pipeline = search_object.best_estimator_
+
+    print("---------------------")
+    print("Using best parameters")
+    print("---------------------")
+    # Print train score
+    train_accuracy = best_pipeline.score(X_train, y_train)
+    print("Train Accuracy:", train_accuracy)
+
+    # Print CV train score
+    print("Mean CV Train Accuracy:", best_train_score)
+
+    # Print test score
+    test_accuracy = best_pipeline.score(X_test, y_test)
+    print("Test Accuracy:", test_accuracy)
+
 
 
