@@ -449,8 +449,9 @@ def plot_seed_variability(X, y, test_size, num_seeds, pipeline_or_model, scoring
     ax.axhline(y=np.mean(list(train_cv_dict.values())), color='b', linestyle='dotted')
     ax.plot(np.arange(1,num_seeds + 1), test_dict.values(), color="g", alpha=0.4, label="Test Accuracy")
     ax.axhline(y=np.mean(list(test_dict.values())), color='g', linestyle='dotted')
-    ax.set_ylabel(scoring)
+    ax.set_ylabel(scoring.capitalize())
     ax.set_xlabel("Seed")
+    ax.set_title("Train, Train CV and Test Score Variability Across Seeds")
     ax.legend()
     plt.show()
 
