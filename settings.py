@@ -442,9 +442,12 @@ def plot_seed_variability(X, y, test_size, current_seed, num_seeds, pipeline_or_
         elif pipeline_type == "sklearn":
             test_accuracy = pipeline_or_model.score(X_test, y_test)
         else:
+            transformer_count = len(pipeline_or_model.steps) - 2
             steps = pipeline_or_model.steps
-            transformer = steps[0][1]
-            X_test_transformed = transformer.transform(X_test)
+            X_test_transformed = X_test.copy()
+            for i in range(0, transformer_count)
+                transformer = steps[i][1]
+                X_test_transformed = transformer.transform(X_test_transformed)
             model = steps[-1][1]
             test_accuracy = model.score (X_test_transformed, y_test)
         train_dict[i] = train_accuracy
@@ -523,14 +526,14 @@ def hyperparam_tune_summary(search_object, X_train, y_train, X_test, y_test):
     print("---------------------")
     # Print train score
     train_accuracy = best_pipeline.score(X_train, y_train)
-    print("Train Accuracy:", train_accuracy)
+    print("Train Accuracy:", settings.score_formatter(train_accuracy,3))
 
     # Print CV train score
-    print("Mean CV Train Accuracy:", best_train_score)
+    print("Mean CV Train Accuracy:", settings.score_formatter(best_train_score,3))
 
     # Print test score
     test_accuracy = best_pipeline.score(X_test, y_test)
-    print("Test Accuracy:", test_accuracy)
+    print("Test Accuracy:", settings.score_formatter(test_accuracy,3))
 
 
 
