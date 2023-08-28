@@ -30,6 +30,7 @@ from sklearn.metrics import roc_curve, auc
 import statsmodels.api as sm
 from scipy.stats import kurtosis, skew
 from imblearn.over_sampling import SMOTENC
+from sklearn.base import BaseEstimator, TransformerMixin
 
 
 # import others
@@ -435,23 +436,22 @@ def plot_seed_variability(X, y, test_size, current_seed, num_seeds, pipeline_or_
         train_accuracy = pipeline_or_model.score(X_train, y_train)
         train_dict[i] = train_accuracy
         # score on test and to dict
-        # 
         allowed_pipeline_type = ["sklearn", "imblearn"]
         if pipeline_type not in allowed_pipeline_type:
             raise ValueError(f"'pipeline_type' must be one of {allowed_pipeline_type}")
         elif pipeline_type == "sklearn":
             test_accuracy = pipeline_or_model.score(X_test, y_test)
         else:
-            transformer_count = len(pipeline_or_model.steps) - 2
-            steps = pipeline_or_model.steps
-            X_test_transformed = X_test.copy()
-            for i in range(0, transformer_count)
-                transformer = steps[i][1]
+            steps = pipeline_or_model.steps # collect all steps of pipeline
+            transformer_count = len(steps) - 2 # collect indicies of non-model and non-smote steps
+            transformers = [step[1] for step in steps[:transformer_count]] # collect ordered transformer objects
+            model = steps[-1][1]  # collect model
+            X_test_transformed = X_test
+            for transformer in transformers:
                 X_test_transformed = transformer.transform(X_test_transformed)
-            model = steps[-1][1]
             test_accuracy = model.score (X_test_transformed, y_test)
-        train_dict[i] = train_accuracy
-        test_dict[i] = test_accuracy
+            train_dict[i] = train_accuracy
+            test_dict[i] = test_accuracy
 
     # calculate average train and test accuracy scores across all seeds
     ave_train = np.mean(list(train_dict.values()))
@@ -462,20 +462,6 @@ def plot_seed_variability(X, y, test_size, current_seed, num_seeds, pipeline_or_
     print("Average train score across seeds:", settings.score_formatter(ave_train,3))
     print("Average cv train score across seeds:", settings.score_formatter(ave_train_cv,3))
     print("Average test score across seeds:", settings.score_formatter(ave_test,3))
-
-    # calculate and present seed most similar to the train and test averages
-    train_diff_dict = {}
-    test_diff_dict = {}
-    result_dict = {}
-
-    for k, v in train_dict.items():
-        train_diff_dict[k] = np.abs(v - ave_train)
-    for k, v in test_dict.items():
-        test_diff_dict[k] = np.abs(v - ave_test)
-    for k, v in train_diff_dict.items():
-        result_dict[k] = (v + test_diff_dict[k]) / 2
-    min_seed = min(result_dict, key=result_dict.get)
-    print("seed closest to average:", min_seed, " (difference: ", settings.score_formatter(result_dict[min_seed], 3), ")")
 
     # plot results
     fig, ax = plt.subplots(figsize=(6, 4), gridspec_kw={'hspace': 0.8}, facecolor="#F3EEE7")
@@ -493,6 +479,9 @@ def plot_seed_variability(X, y, test_size, current_seed, num_seeds, pipeline_or_
     ax.legend()
     plt.show()
   
+    # return seed to original
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=current_seed, stratify=y)
+
 
 
 
@@ -524,12 +513,26 @@ def hyperparam_tune_summary(search_object, X_train, y_train, X_test, y_test):
     print("---------------------")
     print("Using best parameters")
     print("---------------------")
+    
     # Print train score
     train_accuracy = best_pipeline.score(X_train, y_train)
     print("Train Accuracy:", settings.score_formatter(train_accuracy,3))
 
     # Print CV train score
-    print("Mean CV Train Accuracy:", settings.score_formatter(best_train_score,3))
+    # Access the cv_results_ dictionary from the GridSearchCV object
+    cv_results = search_object.cv_results_
+
+    # Find the index of the best estimator in the cv_results_ arrays
+    best_index = np.argmax(cv_results['rank_test_score'] == 1)
+
+    best_index = np.argmax(cv_results['rank_test_score'] == 1)
+
+    # Extract the cross-validation scores for the best estimator
+    best_std = cv_results['std_test_score'][best_index]
+    best_std
+
+    print('Mean CV Train Accuracy:', settings.score_formatter(best_train_score, 3),
+        "( +-", settings.score_formatter(best_std, 3), ")")
 
     # Print test score
     test_accuracy = best_pipeline.score(X_test, y_test)
@@ -537,3 +540,78 @@ def hyperparam_tune_summary(search_object, X_train, y_train, X_test, y_test):
 
 
 
+def cross_val_summary(pipeline, cv_scores, X_train, y_train, X_test, y_test):
+    """
+    Calculate and print a summary of cross-validation and test accuracy for a given pipeline.
+
+    Parameters:
+    pipeline (Pipeline): The pipeline to be evaluated.
+    cv_scores (numpy.ndarray): Array of cross-validation scores.
+    X_train (numpy.ndarray): Training data features.
+    y_train (numpy.ndarray): Training data labels.
+    X_test (numpy.ndarray): Test data features.
+    y_test (numpy.ndarray): Test data labels.
+    """
+
+    # Fit pipeline and produce training accuracy
+    pipeline.fit(X_train, y_train)
+    train_acc = pipeline.score(X_train, y_train)
+    print('Train Accuracy:', settings.score_formatter(train_acc, 3))
+
+    # Calculate mean and standard deviation of cross-validation train scores
+    mean_train_cv = np.mean(cv_scores)
+    std_train_cv = np.std(cv_scores)
+    print('Mean CV Train Accuracy:', settings.score_formatter(mean_train_cv, 4),
+          "( +-", settings.score_formatter(std_train_cv, 3), ")")
+
+    # Fit pipeline and produce test accuracy
+    test_acc = pipeline.score(X_test, y_test)
+    print('Test Accuracy:', settings.score_formatter(test_acc, 4))
+
+
+
+# create binning transformer class
+class CustomBinnerNB(BaseEstimator, TransformerMixin):
+    # def __init__(self)
+    #     # print("\n>>>>>>>>init() called.\n")
+    
+    def fit(self, X, y = None):
+        # print("\n>>>>>>>>fit() called.\n")
+        return self
+
+    def transform(self, X, y = None):
+        # print("\n>>>>>>>>transform() called.\n")
+        X_bin = X.copy()
+        # Bin age to new column and drop original column
+        X_bin.loc[:,'Age Bin'] = pd.cut(X_bin.loc[:,'Age'], 
+        [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100, float('inf')], 
+        labels=['0-4', '5-9', '10-15', '10-19', '20-24', '25-29', '30-34', '35-39', '40-44', '45-49', '50-54', '55-59', '60-64', '65-69', '70-74', '75-79', '80-84', '85-89', '90-94', '95-99', '>100']).astype("object")
+        X_bin = X_bin.drop("Age", axis=1)
+
+        # Bin sleep duration to new column and drop original column
+        X_bin.loc[:,'Sleep Duration Bin'] = pd.cut(X_bin.loc[:,'Sleep Duration'], 
+        [0, 4, 4.5, 5, 5.5, 6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10, float('inf')], 
+        labels=['<4', '4.0-4.4', '4.5-4.9', '5.0-5.4', '5.5-5.9', '6.0-6.4', '6.5-6.9', '7.0-7.4', '7.5-7.9', '8.0-8.4', '8.5-8.9', '9.0-9.4', '9.5-9.9', '>10']).astype("object")
+        X_bin = X_bin.drop("Sleep Duration", axis=1)
+
+        # Bin physical activity level to new column and drop original column
+        X_bin.loc[:,'Physical Activity Level Bin'] = pd.cut(X_bin.loc[:,'Physical Activity Level'], 
+        [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, float('inf')], 
+        labels=['0-9', '10-19', '20-29', '30-39', '40-49', '50-59', '60-69', '70-79', '80-89', '90-99', '>100']).astype("object")
+        X_bin = X_bin.drop("Physical Activity Level", axis=1)
+    
+        # Bin heart rate to new column and drop original column
+        X_bin.loc[:,'Heart Rate Bin'] = pd.cut(X_bin.loc[:,'Heart Rate'], 
+        [0, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100, float('inf')], 
+        labels=['<40', '40-44', '45-49', '50-54', '55-59', '60-64', '65-69', '70-74', '75-79', '80-84', '85-89', '90-94', '95-99', '>100']).astype("object")
+        X = X.drop("Heart Rate", axis=1)
+
+        # Bin daily steps to new column and drop original column
+        X_bin.loc[:,'Daily Steps Bin'] = pd.cut(X_bin.loc[:,'Daily Steps'], 
+        [0, 3000, 3500, 4000, 4500, 5000, 5500, 6000, 6500, 7000, 7500, 8000, 8500, 9000, 9500, 100000, float('inf')], 
+        labels=['<3000', '3000-3499', '3500-3999', '4000-4499', '4500-4999', '5000-5499', '5500-5999', '6000-6499', '6500-6999', '7000-7499', '7500-7999', '8000-8499', '8500-8999', '9000-9499', '9500-9999', '>100']).astype("object")
+        X_bin = X_bin.drop("Daily Steps", axis=1)
+
+        X_bin = X_bin.astype(str)
+
+        return X_bin
