@@ -31,6 +31,8 @@ import statsmodels.api as sm
 from scipy.stats import kurtosis, skew
 from imblearn.over_sampling import SMOTENC
 from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.metrics import f1_score, make_scorer
+
 
 
 # import others
@@ -451,7 +453,7 @@ def plot_seed_variability(X, y, test_size, current_seed, num_seeds, pipeline_or_
                 X_test_transformed = transformer.transform(X_test_transformed)
             test_accuracy = model.score (X_test_transformed, y_test)
             train_dict[i] = train_accuracy
-            test_dict[i] = test_accuracy
+        test_dict[i] = test_accuracy
 
     # calculate average train and test accuracy scores across all seeds
     ave_train = np.mean(list(train_dict.values()))
@@ -485,7 +487,7 @@ def plot_seed_variability(X, y, test_size, current_seed, num_seeds, pipeline_or_
 
 
 
-def hyperparam_tune_summary(search_object, X_train, y_train, X_test, y_test):
+def hyperparam_tune_summary(search_object, X_train, y_train, X_test, y_test, scorer):
     """
     Summarizes the results of hyperparameter tuning using GridSearchCV.
 
@@ -501,11 +503,11 @@ def hyperparam_tune_summary(search_object, X_train, y_train, X_test, y_test):
     """
     
     # Access best hyperparameters and accuracy score
-    best_params, best_train_score = search_object.best_params_, search_object.best_score_
+    best_train_cv_params, best_train_cv_score = search_object.best_params_, search_object.best_score_
 
     # Print the best parameters
     print("Best Parameters:")
-    display(pd.DataFrame(best_params, index=[0]))
+    display(pd.DataFrame(best_train_cv_params, index=[0]))
 
     # Get best pipeline
     best_pipeline = search_object.best_estimator_
@@ -514,10 +516,17 @@ def hyperparam_tune_summary(search_object, X_train, y_train, X_test, y_test):
     print("Using best parameters")
     print("---------------------")
     
-    # Print train score
-    train_accuracy = best_pipeline.score(X_train, y_train)
-    print("Train Accuracy:", settings.score_formatter(train_accuracy,3))
+    # Fit pipeline
+    best_pipeline.fit(X_train, y_train)
 
+    # predict on pipeline
+    y_pred_train = best_pipeline.predict(X_train)
+    y_pred_test = best_pipeline.predict(X_test)
+
+    # score pipeline on train
+    train_score = scorer(y_train, y_pred_train)
+    print('Train Score:', settings.score_formatter(train_score, 3))
+    
     # Print CV train score
     # Access the cv_results_ dictionary from the GridSearchCV object
     cv_results = search_object.cv_results_
@@ -525,22 +534,19 @@ def hyperparam_tune_summary(search_object, X_train, y_train, X_test, y_test):
     # Find the index of the best estimator in the cv_results_ arrays
     best_index = np.argmax(cv_results['rank_test_score'] == 1)
 
-    best_index = np.argmax(cv_results['rank_test_score'] == 1)
-
     # Extract the cross-validation scores for the best estimator
-    best_std = cv_results['std_test_score'][best_index]
-    best_std
+    best_train_cv_std = cv_results['std_test_score'][best_index]
 
-    print('Mean CV Train Accuracy:', settings.score_formatter(best_train_score, 3),
-        "( +-", settings.score_formatter(best_std, 3), ")")
+    print('Mean CV Train Score:', settings.score_formatter(best_train_cv_score, 3),
+        "( +-", settings.score_formatter(best_train_cv_std, 3), ")")
 
-    # Print test score
-    test_accuracy = best_pipeline.score(X_test, y_test)
-    print("Test Accuracy:", settings.score_formatter(test_accuracy,3))
-
+    # score pipeline on test
+    test_score = scorer(y_test, y_pred_test)
+    print('Test Score:', settings.score_formatter(test_score, 3))
 
 
-def cross_val_summary(pipeline, cv_scores, X_train, y_train, X_test, y_test):
+
+def cross_val_summary(pipeline, cv_scores, X_train, y_train, X_test, y_test, scorer):
     """
     Calculate and print a summary of cross-validation and test accuracy for a given pipeline.
 
@@ -553,21 +559,32 @@ def cross_val_summary(pipeline, cv_scores, X_train, y_train, X_test, y_test):
     y_test (numpy.ndarray): Test data labels.
     """
 
-    # Fit pipeline and produce training accuracy
+    # Fit pipeline
     pipeline.fit(X_train, y_train)
-    train_acc = pipeline.score(X_train, y_train)
-    print('Train Accuracy:', settings.score_formatter(train_acc, 3))
+
+    # predict on pipeline
+    y_pred_train = pipeline.predict(X_train)
+    y_pred_test = pipeline.predict(X_test)
+
+    # score pipeline on train
+    train_score = scorer(y_train, y_pred_train)
+    print('Train Score:', settings.score_formatter(train_score, 3))
 
     # Calculate mean and standard deviation of cross-validation train scores
-    mean_train_cv = np.mean(cv_scores)
-    std_train_cv = np.std(cv_scores)
-    print('Mean CV Train Accuracy:', settings.score_formatter(mean_train_cv, 4),
-          "( +-", settings.score_formatter(std_train_cv, 3), ")")
+    mean_train_cv_score = np.mean(cv_scores)
+    std_train_cv_score  = np.std(cv_scores)
+    print('Mean CV Train Score:', settings.score_formatter(mean_train_cv_score, 4),
+          "( +-", settings.score_formatter(std_train_cv_score, 3), ")")
 
-    # Fit pipeline and produce test accuracy
-    test_acc = pipeline.score(X_test, y_test)
-    print('Test Accuracy:', settings.score_formatter(test_acc, 4))
+    # score pipeline on test
+    test_score = scorer(y_test, y_pred_test)
+    print('Test Score:', settings.score_formatter(test_score, 3))
 
+
+
+################################
+########## Class Defs ##########
+################################
 
 
 # create binning transformer class
@@ -615,3 +632,17 @@ class CustomBinnerNB(BaseEstimator, TransformerMixin):
         X_bin = X_bin.astype(str)
 
         return X_bin
+
+
+
+class CustomPositiveF1Scorer():
+    def __init__(self):
+        # Define the scorer function
+        def positive_f1_scorer(y_true, y_pred):
+            return f1_score(y_true, y_pred, labels=[1, 2], average='micro')
+
+        # Assign the scorer function to self.scorer_function
+        self.scorer_function = positive_f1_scorer
+
+        # Create the custom scorer using make_scorer
+        self.custom_scorer = make_scorer(self.scorer_function)
