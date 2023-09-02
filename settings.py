@@ -305,7 +305,7 @@ def score_formatter(score, precision):
     Returns:
         str: The formatted score as a percentage string.
     """
-    formatted_score = f"{np.round(score, precision) * 100:.{precision}f} %"
+    formatted_score = f"{np.round(score * 100, precision):.{precision}f} %"
     return formatted_score
 
 
