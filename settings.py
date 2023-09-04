@@ -558,7 +558,7 @@ def cross_val_summary(pipeline, cv_scores, X_train, y_train, X_test, y_test, sco
     X_test (numpy.ndarray): Test data features.
     y_test (numpy.ndarray): Test data labels.
     """
-
+    
     # Fit pipeline
     pipeline.fit(X_train, y_train)
 
