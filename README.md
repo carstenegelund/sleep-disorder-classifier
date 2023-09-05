@@ -1,4 +1,4 @@
-# Sleep Disorder Classifier
+# Sleep Disorder Classifier: Summary Report
 
 [![](https://img.shields.io/badge/Python-white?style=flat&logo=Python&logoColor=3776AB&color=white)](#)
 [![](https://img.shields.io/badge/Sklearn-white?style=flat&logo=scikitlearn&logoColor=F7931E&color=white)](#)
